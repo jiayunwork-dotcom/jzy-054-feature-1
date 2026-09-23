@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>傅里叶变换教学工具 · 时域 / 频域实验室</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>傅里叶变换教学工具</h1>
+      <div class="global-controls">
+        <label>
+          采样点数 N
+          <select id="select-n">
+            <option>64</option>
+            <option selected>128</option>
+            <option>256</option>
+            <option>512</option>
+            <option>1024</option>
+          </select>
+        </label>
+        <label>
+          采样率 fs (Hz)
+          <input id="input-fs" type="number" min="1" step="1" value="256" />
+        </label>
+        <label>
+          补零到 N′
+          <select id="select-pad"></select>
+        </label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel" id="panel-signal">
+        <h2>① 信号构造</h2>
+        <div id="signal-builder"></div>
+      </section>
+
+      <section class="panel" id="panel-spectrum">
+        <h2>② 离散傅里叶变换与窗函数</h2>
+        <div id="window-compare"></div>
+        <div id="spectrum-view"></div>
+      </section>
+
+      <section class="panel" id="panel-right">
+        <div id="alias-demo"></div>
+        <div id="filter-panel"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
