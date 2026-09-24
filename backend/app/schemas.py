@@ -106,3 +106,73 @@ class SamplingResponse(BaseModel):
     aliased: bool
     apparent_freq_hz: float
     nyquist_hz: float
+
+
+# ------------------------------------------------------------------ STFT ---
+
+
+class StftRequest(BaseModel):
+    signal: list[float]
+    fs: float = Field(description="sampling rate in Hz")
+    frame_length: int = Field(
+        description="samples per analysis frame; one of 64/128/256/512/1024"
+    )
+    hop: int = Field(
+        description="frame advance in samples; 1 <= hop <= frame_length "
+        "(smaller = more overlap = smoother time axis, more frames to compute)"
+    )
+    window: WindowSpec = Field(
+        default_factory=lambda: WindowSpec(name="hann"),
+        description="analysis window applied to every frame",
+    )
+
+
+class StftResponse(BaseModel):
+    frame_length: int
+    hop: int
+    num_frames: int
+    fs: float
+    window: str
+    beta: float | None = None
+    # Axes: one entry per column (time center, seconds) and per row
+    # (one-sided frequency 0 .. fs/2, Hz).
+    times: list[float]
+    frequencies: list[float]
+    # Intensity matrices, shape (num_frequencies, num_frames): rows =
+    # frequency, columns = time.
+    power: list[list[float]]
+    magnitude: list[list[float]]
+    magnitude_db: list[list[float]]
+    # Time/frequency resolution figures surfaced for the trade-off readout.
+    time_resolution_s: float = Field(
+        description="duration spanned by one column: hop / fs (seconds)"
+    )
+    frame_duration_s: float = Field(
+        description="duration covered by one frame: frame_length / fs (seconds)"
+    )
+    frequency_resolution_hz: float = Field(
+        description="spacing of two neighboring frequency rows: fs / frame_length"
+    )
+    overlap_ratio: float = Field(
+        description="fraction of adjacent frames shared: 1 - hop/frame_length"
+    )
+
+
+class IstftRequest(BaseModel):
+    # Full length-frame_length spectra, one row per analysis frame (all bins,
+    # not just the one-sided view), in the convention returned by the STFT
+    # module. signal_length pins the expected output so frame-structure
+    # mismatches are rejected explicitly.
+    real: list[list[float]]
+    imag: list[list[float]] | None = None
+    frame_length: int
+    hop: int
+    signal_length: int
+    window: WindowSpec = Field(
+        default_factory=lambda: WindowSpec(name="hann"),
+    )
+
+
+class IstftResponse(BaseModel):
+    signal: list[float]
+    num_frames: int

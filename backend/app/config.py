@@ -11,6 +11,16 @@ from __future__ import annotations
 # Selectable transform sizes N.
 ALLOWED_N: frozenset[int] = frozenset({64, 128, 256, 512, 1024})
 
+# Frame lengths offered by the short-time analysis. They reuse the same size
+# ladder as the single-frame DFT (radix-2 FFT path), aliased under a
+# domain-specific name so the STFT module's contract reads on its own.
+ALLOWED_FRAME_LENGTHS: frozenset[int] = ALLOWED_N
+
+# Safety valve for the STFT endpoint: number of analysis columns. The teaching
+# UI never comes near this (signal length <= 1024), but the open API must not
+# be asked to transform tens of thousands of frames in one request.
+MAX_STFT_FRAMES: int = 4096
+
 # Accepted zero-padding target lengths (must be >= the signal length).
 ALLOWED_PADDED_N: frozenset[int] = frozenset(
     {64, 128, 256, 512, 1024, 2048, 4096}

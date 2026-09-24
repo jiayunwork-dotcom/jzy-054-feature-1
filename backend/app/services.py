@@ -14,6 +14,8 @@ from . import aliasing, filtering
 from .config import ALLOWED_N, ALLOWED_PADDED_N
 from .dft import analyze, dft_frequencies, idft, magnitude_db
 from .errors import BadRequest
+from .stft import istft as istft_frames
+from .stft import spectrogram as compute_spectrogram
 from .windows import get_window, window_metrics
 
 
@@ -197,3 +199,78 @@ def _to_list(value):
     if isinstance(value, (bool, np.bool_)):
         return bool(value)
     return value
+
+
+# ------------------------------------------------------------- short-time ---
+
+
+def _matrix_to_list(matrix: np.ndarray) -> list[list[float]]:
+    """Convert a 2-D numpy matrix to a nested list of Python floats."""
+    return [[float(v) for v in row] for row in matrix]
+
+
+def stft_service(req) -> dict:
+    """Validate a /stft request and run the short-time analysis."""
+    x = _finite_real_signal(req.signal)
+    _check_fs(req.fs)
+    window_name = req.window.name
+    beta = req.window.beta
+    # Raises BadRequest on unknown windows / missing Kaiser beta too.
+    get_window(window_name, min(8, x.shape[0]), beta)
+
+    result = compute_spectrogram(
+        x,
+        float(req.fs),
+        int(req.frame_length),
+        int(req.hop),
+        window_name,
+        beta,
+    )
+    fl = int(req.frame_length)
+    hop = int(req.hop)
+    return {
+        "frame_length": fl,
+        "hop": hop,
+        "num_frames": int(result["num_frames"]),
+        "fs": float(req.fs),
+        "window": window_name,
+        "beta": None if beta is None else float(beta),
+        "times": _to_list(result["times"]),
+        "frequencies": _to_list(result["frequencies"]),
+        "power": _matrix_to_list(result["power"]),
+        "magnitude": _matrix_to_list(result["magnitude"]),
+        "magnitude_db": _matrix_to_list(result["magnitude_db"]),
+        "time_resolution_s": hop / float(req.fs),
+        "frame_duration_s": fl / float(req.fs),
+        "frequency_resolution_hz": float(req.fs) / fl,
+        "overlap_ratio": 1.0 - hop / fl,
+    }
+
+
+def istft_service(req) -> dict:
+    """Validate a /istft request and weighted-overlap-add reconstruct."""
+    real = np.asarray(req.real, dtype=np.float64)
+    if real.ndim != 2 or real.size == 0:
+        raise BadRequest(
+            "real must be a non-empty 2-D list (one spectrum per frame)"
+        )
+    if req.imag is None:
+        imag = np.zeros_like(real)
+    else:
+        imag = np.asarray(req.imag, dtype=np.float64)
+        if imag.shape != real.shape:
+            raise BadRequest("real and imag must have identical shape")
+    frames = real + 1j * imag
+    y = istft_frames(
+        frames,
+        int(req.frame_length),
+        int(req.hop),
+        int(req.signal_length),
+        req.window.name,
+        req.window.beta,
+    )
+    y = np.real_if_close(y, tol=1000)
+    return {
+        "signal": [float(v) for v in np.asarray(y, dtype=np.float64)],
+        "num_frames": int(real.shape[0]),
+    }
