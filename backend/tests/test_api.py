@@ -266,3 +266,215 @@ def test_sampling_api_no_alias():
     assert r.status_code == 200
     assert r.json()["aliased"] is False
     assert r.json()["apparent_freq_hz"] == pytest.approx(50.0)
+
+
+# -------------------------------------------------------------- spectrogram ---------------------------------------------------------------
+
+
+def test_stft_api_shape_and_resolutions():
+    n, fs, frame, hop = 1024, 256.0, 256, 64
+    t = np.arange(n) / fs
+    x = list(np.sin(2 * np.pi * 20 * t))
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": x,
+            "fs": fs,
+            "frame_length": frame,
+            "hop_length": hop,
+            "window": {"name": "hann"},
+        },
+    )
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert len(d["frequencies"]) == frame // 2 + 1
+    assert d["frequencies"][1] == pytest.approx(fs / frame)
+    assert d["frequencies"][-1] == pytest.approx(fs / 2)
+    assert len(d["magnitude"]) == d["num_frames"]
+    assert all(len(row) == frame // 2 + 1 for row in d["magnitude"])
+    assert d["time_resolution_s"] == pytest.approx(frame / fs)
+    assert d["frequency_resolution_hz"] == pytest.approx(fs / frame)
+    assert d["overlap_ratio"] == pytest.approx(1 - hop / frame)
+    assert d["spectra_real"] is None  # off by default -> payload stays light
+
+
+def test_stft_tone_is_horizontal_line():
+    fs = 256.0
+    t = np.arange(1024) / fs
+    body = {
+        "signal": list(np.sin(2 * np.pi * 48 * t)),
+        "fs": fs,
+        "frame_length": 256,
+        "hop_length": 64,
+        "window": {"name": "hann"},
+    }
+    r = client.post("/api/stft", json=body)
+    d = r.json()
+    mag = np.asarray(d["magnitude"])
+    starts = np.asarray(d["frame_starts"])
+    contained = (starts >= 0) & (starts + 256 <= 1024)
+    peaks = np.argmax(mag[contained], axis=1)
+    assert set(np.unique(peaks)) == {48}  # 48 Hz = bin 48 at fs/N = 1 Hz
+
+
+def test_stft_chirp_peaks_rise():
+    fs = 256.0
+    t = np.arange(2048) / fs
+    x = np.sin(2 * np.pi * (8 * t + 0.5 * 11.5 * t**2))
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": list(x),
+            "fs": fs,
+            "frame_length": 256,
+            "hop_length": 64,
+            "window": {"name": "hann"},
+        },
+    )
+    d = r.json()
+    mag = np.asarray(d["magnitude"])
+    starts = np.asarray(d["frame_starts"])
+    contained = (starts >= 0) & (starts + 256 <= 2048)
+    peaks = np.argmax(mag[contained], axis=1)
+    assert np.all(np.diff(peaks) >= 0)
+    assert peaks[-1] - peaks[0] >= 50
+
+
+def test_stft_then_istft_api_roundtrip():
+    rng = np.random.default_rng(11)
+    x = list(rng.standard_normal(1024))
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": x,
+            "fs": 256,
+            "frame_length": 256,
+            "hop_length": 128,
+            "window": {"name": "hann"},
+            "include_spectrum": True,
+        },
+    )
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert len(d["spectra_real"]) == d["num_frames"]
+    assert len(d["spectra_real"][0]) == 256
+    r2 = client.post(
+        "/api/istft",
+        json={
+            "fs": 256,
+            "frame_length": 256,
+            "hop_length": 128,
+            "signal_length": 1024,
+            "spectra_real": d["spectra_real"],
+            "spectra_imag": d["spectra_imag"],
+            "window": {"name": "hann"},
+        },
+    )
+    assert r2.status_code == 200, r2.text
+    np.testing.assert_allclose(r2.json()["signal"], x, atol=1e-9)
+
+
+def test_stft_single_frame_signal_is_one_column():
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": [0.0] * 128,
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": 64,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["num_frames"] == 1
+    assert len(r.json()["times"]) == 1
+
+
+@pytest.mark.parametrize("bad_frame", [16, 63, 100, 1024])
+def test_stft_bad_frame_length_rejected(bad_frame):
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": [0.0] * 256,
+            "fs": 100,
+            "frame_length": bad_frame,
+            "hop_length": 32,
+        },
+    )
+    assert r.status_code == 400
+    assert "frame_length" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("bad_hop", [0, -5])
+def test_stft_nonpositive_hop_rejected(bad_hop):
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": [0.0] * 256,
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": bad_hop,
+        },
+    )
+    assert r.status_code == 400
+    assert "hop_length" in r.json()["detail"]
+
+
+def test_stft_hop_larger_than_frame_rejected():
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": [0.0] * 256,
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": 200,
+        },
+    )
+    assert r.status_code == 400
+    assert "must not exceed" in r.json()["detail"]
+
+
+def test_stft_signal_shorter_than_frame_rejected():
+    r = client.post(
+        "/api/stft",
+        json={
+            "signal": [0.0] * 100,
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": 64,
+        },
+    )
+    assert r.status_code == 400
+    assert "too short" in r.json()["detail"]
+
+
+def test_istft_frame_bin_width_mismatch_rejected():
+    r = client.post(
+        "/api/istft",
+        json={
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": 64,
+            "signal_length": 256,
+            # Only the one-sided 65 bins supplied: structural mismatch.
+            "spectra_real": [[0.0] * 65 for _ in range(4)],
+            "spectra_imag": [[0.0] * 65 for _ in range(4)],
+        },
+    )
+    assert r.status_code == 400
+    assert "frame_length" in r.json()["detail"]
+
+
+def test_istft_frame_count_mismatch_rejected():
+    r = client.post(
+        "/api/istft",
+        json={
+            "fs": 100,
+            "frame_length": 128,
+            "hop_length": 64,
+            "signal_length": 1024,
+            "spectra_real": [[0.0] * 128 for _ in range(2)],
+            "spectra_imag": [[0.0] * 128 for _ in range(2)],
+        },
+    )
+    assert r.status_code == 400
+    assert "frame structure mismatch" in r.json()["detail"]

@@ -12,7 +12,7 @@ plus a cross-check of the hand-written FFT against numpy.fft.
 import numpy as np
 import pytest
 
-from app.dft import analyze, dft, dft_frequencies, idft
+from app.dft import analyze, dft, dft_batch, dft_frequencies, idft
 from app.windows import get_window, window_metrics
 
 SIZES = [1, 2, 3, 5, 16, 64, 128, 256, 100, 1000]
@@ -86,6 +86,15 @@ def test_matches_numpy_fft():
         x = rng.standard_normal(n)
         np.testing.assert_allclose(dft(x), np.fft.fft(x), atol=1e-7, rtol=1e-7)
         np.testing.assert_allclose(idft(dft(x)), x, atol=1e-9)
+
+
+@pytest.mark.parametrize("n", [32, 64, 128, 256, 512])
+def test_dft_batch_matches_per_row_kernel(n):
+    rng = np.random.default_rng(n)
+    x = rng.standard_normal((10, n))
+    batched = dft_batch(x)
+    for row in range(10):
+        np.testing.assert_allclose(batched[row], dft(x[row]), atol=1e-9)
 
 
 def test_zero_signal_has_zero_spectrum():

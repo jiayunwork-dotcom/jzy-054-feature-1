@@ -8,6 +8,8 @@ POST /api/idft                   spectrum back to time domain
 POST /api/windows                window coefficients + figures of merit
 POST /api/filter                 frequency-selective filtering
 POST /api/sampling               sampling-theorem / aliasing demonstration
+POST /api/stft                   overlapping short-time analysis -> spectrogram
+POST /api/istft                  frame spectra reassembled back to time domain
 
 All expected client errors are raised as ``BadRequest`` in the service layer
 and serialized here as HTTP 400 with ``{"detail": "..."}``.
@@ -28,8 +30,12 @@ from .schemas import (
     FilterResponse,
     IdftRequest,
     IdftResponse,
+    IstftRequest,
+    IstftResponse,
     SamplingRequest,
     SamplingResponse,
+    StftRequest,
+    StftResponse,
     WindowRequest,
     WindowResponse,
 )
@@ -84,3 +90,13 @@ async def post_filter(req: FilterRequest) -> dict:
 @app.post("/api/sampling", response_model=SamplingResponse)
 async def post_sampling(req: SamplingRequest) -> dict:
     return services.sampling_service(req)
+
+
+@app.post("/api/stft", response_model=StftResponse)
+async def post_stft(req: StftRequest) -> dict:
+    return services.stft_service(req)
+
+
+@app.post("/api/istft", response_model=IstftResponse)
+async def post_istft(req: IstftRequest) -> dict:
+    return services.istft_service(req)

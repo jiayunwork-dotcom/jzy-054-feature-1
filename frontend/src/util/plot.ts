@@ -23,7 +23,9 @@ interface Padding {
 
 const FONT = '11px ui-monospace, Menlo, Consolas, monospace';
 
-function niceTicks(min: number, max: number, count: number): number[] {
+export { FONT as PLOT_FONT };
+
+export function niceTicks(min: number, max: number, count: number): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min];
   const span = max - min;
   const step0 = span / Math.max(1, count);

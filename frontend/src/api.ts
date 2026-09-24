@@ -5,7 +5,9 @@ import type {
   DftResponse,
   FilterMode,
   FilterResponse,
+  IstftResponse,
   SamplingResponse,
+  StftResponse,
   WindowInfo,
   WindowSelection,
 } from './types';
@@ -80,6 +82,44 @@ export const api = {
       fs,
       n_samples: nSamples,
       phase,
+    });
+  },
+
+  stft(
+    signal: number[],
+    fs: number,
+    frameLength: number,
+    hopLength: number,
+    window: WindowSelection,
+    includeSpectrum = false,
+  ): Promise<StftResponse> {
+    return post('/api/stft', {
+      signal,
+      fs,
+      frame_length: frameLength,
+      hop_length: hopLength,
+      window,
+      include_spectrum: includeSpectrum,
+    });
+  },
+
+  istft(
+    spectraReal: number[][],
+    spectraImag: number[][],
+    frameLength: number,
+    hopLength: number,
+    signalLength: number,
+    fs: number,
+    window: WindowSelection,
+  ): Promise<IstftResponse> {
+    return post('/api/istft', {
+      spectra_real: spectraReal,
+      spectra_imag: spectraImag,
+      frame_length: frameLength,
+      hop_length: hopLength,
+      signal_length: signalLength,
+      fs,
+      window,
     });
   },
 };

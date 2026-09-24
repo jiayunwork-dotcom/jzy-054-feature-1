@@ -106,3 +106,63 @@ class SamplingResponse(BaseModel):
     aliased: bool
     apparent_freq_hz: float
     nyquist_hz: float
+
+
+class StftRequest(BaseModel):
+    signal: list[float]
+    fs: float = Field(description="sampling rate in Hz")
+    frame_length: int = Field(
+        description="samples per segment; one of 32/64/128/256/512"
+    )
+    hop_length: int = Field(
+        description="samples advanced between consecutive frames; 1..frame_length"
+    )
+    window: WindowSpec = Field(
+        default_factory=lambda: WindowSpec(name="hann"),
+        description="window applied to each frame",
+    )
+    include_spectrum: bool = Field(
+        default=False,
+        description="also return the full complex STFT matrix needed by /istft",
+    )
+
+
+class StftResponse(BaseModel):
+    frame_length: int
+    hop_length: int
+    num_frames: int
+    signal_length: int
+    fs: float
+    window: str
+    beta: float | None = None
+    times: list[float]
+    frame_starts: list[int]
+    frequencies: list[float]
+    # One-sided (0..fs/2) display matrix, row-major [time][frequency].
+    magnitude: list[list[float]]
+    power: list[list[float]]
+    time_resolution_s: float
+    frequency_resolution_hz: float
+    overlap_ratio: float
+    # Full-length complex spectra, present only when include_spectrum=true.
+    spectra_real: list[list[float]] | None = None
+    spectra_imag: list[list[float]] | None = None
+
+
+class IstftRequest(BaseModel):
+    fs: float = Field(description="sampling rate in Hz (echoed back)")
+    frame_length: int
+    hop_length: int
+    signal_length: int = Field(
+        description="number of samples of the original signal"
+    )
+    spectra_real: list[list[float]]
+    spectra_imag: list[list[float]]
+    window: WindowSpec = Field(
+        default_factory=lambda: WindowSpec(name="hann"),
+    )
+
+
+class IstftResponse(BaseModel):
+    signal: list[float]
+    signal_length: int

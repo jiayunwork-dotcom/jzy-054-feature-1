@@ -16,6 +16,11 @@ ALLOWED_PADDED_N: frozenset[int] = frozenset(
     {64, 128, 256, 512, 1024, 2048, 4096}
 )
 
+# Selectable segment (frame) lengths for the short-time Fourier analysis.
+# These are the allowed "gears" the segment-length slider may land on; every
+# one is a power of two so the radix-2 FFT kernel is used per frame.
+ALLOWED_FRAME_N: frozenset[int] = frozenset({32, 64, 128, 256, 512})
+
 WINDOW_NAMES: tuple[str, ...] = (
     "rect",
     "hann",

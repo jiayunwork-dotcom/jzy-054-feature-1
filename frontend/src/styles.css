@@ -325,6 +325,66 @@ input[type='range'] {
   flex-wrap: wrap;
 }
 
+/* ⑤ Short-time analysis: full-width row beneath the three columns. */
+.panel-wide {
+  grid-column: 1 / -1;
+}
+.panel-wide h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  color: #cfe1ff;
+}
+.chirp-controls {
+  color: var(--muted);
+  font-size: 11.5px;
+  flex-wrap: wrap;
+}
+.chirp-controls input {
+  width: 64px;
+}
+.btn.active {
+  background: #1f5a3c;
+  border-color: #2f8a5c;
+}
+
+.spec-canvas-wrap {
+  background: #0c111c;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+  cursor: crosshair;
+}
+
+.resolution-box {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 2px;
+}
+.res-item {
+  flex: 1;
+  min-width: 220px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.res-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.res-value {
+  font-size: 12.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.res-value b {
+  color: #8fc2ff;
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;

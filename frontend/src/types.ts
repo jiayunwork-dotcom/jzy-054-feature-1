@@ -72,6 +72,31 @@ export interface SamplingResponse {
 
 export type FilterMode = 'lowpass' | 'highpass' | 'bandpass';
 
+export interface StftResponse {
+  frame_length: number;
+  hop_length: number;
+  num_frames: number;
+  signal_length: number;
+  fs: number;
+  window: WindowName;
+  beta: number | null;
+  times: number[];
+  frame_starts: number[];
+  frequencies: number[];
+  magnitude: number[][];
+  power: number[][];
+  time_resolution_s: number;
+  frequency_resolution_hz: number;
+  overlap_ratio: number;
+  spectra_real?: number[][] | null;
+  spectra_imag?: number[][] | null;
+}
+
+export interface IstftResponse {
+  signal: number[];
+  signal_length: number;
+}
+
 export interface AppState {
   signal: number[];
   components: Component[];

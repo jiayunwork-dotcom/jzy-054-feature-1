@@ -14,6 +14,7 @@ from . import aliasing, filtering
 from .config import ALLOWED_N, ALLOWED_PADDED_N
 from .dft import analyze, dft_frequencies, idft, magnitude_db
 from .errors import BadRequest
+from .spectrogram import istft, stft
 from .windows import get_window, window_metrics
 
 
@@ -197,3 +198,102 @@ def _to_list(value):
     if isinstance(value, (bool, np.bool_)):
         return bool(value)
     return value
+
+
+def stft_service(req) -> dict:
+    """Validate a /stft request and compute the time-frequency matrix."""
+    x = _finite_real_signal(req.signal)
+    _check_fs(req.fs)
+    # check_frame_params (inside stft) enforces the allowed frame-length gears
+    # and the positive-hop / no-skip rule; frame_starts enforces the
+    # "one full frame fits" minimum length.
+
+    name, beta = req.window.name, req.window.beta
+    # stft() itself rejects the bad frame gears/hop, then resolves the window
+    # (unknown name / missing kaiser beta raise the same BadRequest as /dft).
+    result = stft(
+        x,
+        int(req.frame_length),
+        int(req.hop_length),
+        window_name=name,
+        beta=beta,
+    )
+    frames = result["frames"]
+    n_frame = result["frame_length"]
+    hop = result["hop_length"]
+    num_frames = frames.shape[0]
+
+    half = n_frame // 2 + 1
+    one_sided = frames[:, :half]
+    freqs = dft_frequencies(n_frame, float(req.fs))[:half]
+    times = result["times"] / float(req.fs)
+
+    response: dict = {
+        "frame_length": n_frame,
+        "hop_length": hop,
+        "num_frames": int(num_frames),
+        "signal_length": int(x.shape[0]),
+        "fs": float(req.fs),
+        "window": name,
+        "beta": None if beta is None else float(beta),
+        "times": [float(t) for t in times],
+        "frame_starts": [int(s) for s in result["starts"]],
+        "frequencies": [float(f) for f in freqs],
+        "magnitude": [[float(v) for v in row] for row in np.abs(one_sided)],
+        "power": [
+            [float(v) for v in row] for row in (one_sided.real**2 + one_sided.imag**2)
+        ],
+        # The two resolution numbers the trade-off is quantified by:
+        # a column spans frame_length samples in time; a row is fs/N Hz wide.
+        "time_resolution_s": float(n_frame / req.fs),
+        "frequency_resolution_hz": float(req.fs / n_frame),
+        "overlap_ratio": float(1.0 - hop / n_frame),
+        "spectra_real": None,
+        "spectra_imag": None,
+    }
+    if req.include_spectrum:
+        response["spectra_real"] = [
+            [float(v) for v in row] for row in frames.real
+        ]
+        response["spectra_imag"] = [
+            [float(v) for v in row] for row in frames.imag
+        ]
+    return response
+
+
+def istft_service(req) -> dict:
+    """Validate an /istft request and reassemble the time-domain signal."""
+    _check_fs(req.fs)
+    real = np.asarray(req.spectra_real, dtype=np.float64)
+    imag = np.asarray(req.spectra_imag, dtype=np.float64)
+    if real.ndim != 2 or real.size == 0:
+        raise BadRequest(
+            "spectra_real must be a non-empty 2-D matrix (one spectrum per frame)"
+        )
+    if real.shape != imag.shape:
+        raise BadRequest(
+            "spectra_real and spectra_imag must have the same frame x bin shape"
+        )
+    if not (np.all(np.isfinite(real)) and np.all(np.isfinite(imag))):
+        raise BadRequest("spectra contain non-finite values (NaN/Infinity)")
+    if not isinstance(req.signal_length, int) or isinstance(req.signal_length, bool):
+        raise BadRequest("signal_length must be an integer")
+    if req.signal_length < int(req.frame_length):
+        raise BadRequest(
+            f"signal_length ({req.signal_length}) is shorter than one frame "
+            f"({req.frame_length})"
+        )
+
+    name, beta = req.window.name, req.window.beta
+    signal = istft(
+        real + 1j * imag,
+        int(req.frame_length),
+        int(req.hop_length),
+        window=name,
+        beta=beta,
+        signal_length=int(req.signal_length),
+    )
+    return {
+        "signal": [float(v) for v in signal],
+        "signal_length": int(signal.shape[0]),
+    }

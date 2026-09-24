@@ -19,12 +19,17 @@ Under these conventions Parseval's theorem for a length-N sequence reads
 
 The implementation uses a hand-written vectorized radix-2 Cooley-Tukey FFT
 for power-of-two lengths (all selectable sizes in this tool are powers of
-two) and a direct matrix DFT otherwise. This module is deliberately free of
-numpy.fft calls so the arithmetic is genuinely implemented here and can be
-audited on its own; the test-suite cross-checks it against numpy.fft.
+two) and a direct matrix DFT otherwise. :func:`dft_batch` transforms every
+row of a matrix in one BLAS product using the identical kernel matrix — the
+short-time analyzer uses it for dense frame stacks. This module is
+deliberately free of numpy.fft calls so the arithmetic is genuinely
+implemented here and can be audited on its own; the test-suite cross-checks
+it against numpy.fft.
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
 
 import numpy as np
 from numpy.typing import NDArray
@@ -92,6 +97,29 @@ def dft(x: NDArray[np.number]) -> NDArray[np.complex128]:
     if n & (n - 1) == 0:
         return _fft_pow2(xa)
     return _dft_direct(xa)
+
+
+def dft_batch(x: NDArray[np.number]) -> NDArray[np.complex128]:
+    """Forward DFT of every row of a 2-D array, shape (frames, n).
+
+    Uses the same DFT coefficients as :func:`dft` (a single matrix product
+    with the precomputed kernel matrix), so results are bit-identical to
+    transforming each row with :func:`dft` while BLAS handles the batching.
+    """
+    xa = np.asarray(x)
+    if xa.ndim != 2:
+        raise ValueError("dft_batch expects a 2-D array")
+    n = xa.shape[1]
+    if n == 0:
+        return np.zeros(xa.shape, dtype=np.complex128)
+    return np.asarray(xa, dtype=np.complex128) @ _dft_matrix(n)
+
+
+@lru_cache(maxsize=16)
+def _dft_matrix(n: int) -> NDArray[np.complex128]:
+    """The n x n DFT kernel matrix E[k, m] = exp(-j 2 pi k m / n)."""
+    idx = np.arange(n)
+    return np.exp(-2j * np.pi * np.outer(idx, idx) / n)
 
 
 def idft(x: NDArray[np.number]) -> NDArray[np.complex128]:

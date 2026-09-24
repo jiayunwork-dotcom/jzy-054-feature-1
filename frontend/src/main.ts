@@ -8,6 +8,7 @@ import { WindowCompare } from './components/WindowCompare';
 import { SpectrumView } from './components/SpectrumView';
 import { AliasDemo } from './components/AliasDemo';
 import { FilterPanel } from './components/FilterPanel';
+import { SpectrogramPanel } from './components/SpectrogramPanel';
 
 const PAD_CHOICES = [128, 256, 512, 1024, 2048, 4096];
 
@@ -53,6 +54,7 @@ function boot(): void {
   const spectrum = new SpectrumView(document.querySelector('#spectrum-view')!);
   new AliasDemo(document.querySelector('#alias-demo')!);
   new FilterPanel(document.querySelector('#filter-panel')!);
+  new SpectrogramPanel(document.querySelector('#spectrogram-panel')!);
 
   // Window-set changes refresh both the table (WindowCompare) and the
   // spectra (SpectrumView subscribes itself).
