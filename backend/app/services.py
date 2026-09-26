@@ -1,16 +1,16 @@
 """Service layer: request validation + orchestration over the math modules.
 
 The math kernel (:mod:`app.dft`, :mod:`app.windows`, :mod:`app.filtering`,
-:mod:`app.aliasing`) stays free of API concerns; this module validates the
-product-level rules (allowed sizes, positive rates, ...) and converts numpy
-arrays to plain Python lists for the Pydantic responses.
+:mod:`app.aliasing`, :mod:`app.stft`) stays free of API concerns; this module
+validates the product-level rules (allowed sizes, positive rates, ...) and
+converts numpy arrays to plain Python lists for the Pydantic responses.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from . import aliasing, filtering
+from . import aliasing, filtering, stft
 from .config import ALLOWED_N, ALLOWED_PADDED_N
 from .dft import analyze, dft_frequencies, idft, magnitude_db
 from .errors import BadRequest
@@ -189,6 +189,104 @@ def sampling_service(req) -> dict:
         "apparent_freq_hz": float(result["apparent_freq_hz"]),
         "nyquist_hz": float(result["nyquist_hz"]),
     }
+
+
+def stft_service(req) -> dict:
+    """Validate a /stft request and compute the spectrogram (+ axes)."""
+    x = _finite_real_signal(req.signal)
+    _check_fs(req.fs)
+    if req.pad_left < 0:
+        raise BadRequest("pad_left must be non-negative")
+    # get_window raises BadRequest on unknown names / missing beta.
+    get_window(req.window.name, 8, req.window.beta)
+
+    result = stft.spectrogram(
+        x,
+        float(req.fs),
+        req.frame_len,
+        req.hop,
+        req.window.name,
+        req.window.beta,
+        pad_left=int(req.pad_left),
+    )
+    out = {
+        "frame_len": int(req.frame_len),
+        "hop": int(req.hop),
+        "fs": float(req.fs),
+        "window": req.window.name,
+        "beta": None if req.window.beta is None else float(req.window.beta),
+        "num_frames": result["num_frames"],
+        "num_bins": result["num_bins"],
+        "times": [float(v) for v in result["times"]],
+        "frequencies": [float(v) for v in result["frequencies"]],
+        "magnitude": [[float(v) for v in row] for row in result["magnitude"]],
+        "frame_duration_s": result["frame_duration_s"],
+        "time_step_s": result["time_step_s"],
+        "freq_step_hz": result["freq_step_hz"],
+        "pad_left": int(req.pad_left),
+        "signal_length": int(x.shape[0]),
+    }
+    if req.include_frames:
+        spectra, _ = stft.stft_frames(
+            x,
+            req.frame_len,
+            req.hop,
+            req.window.name,
+            req.window.beta,
+            pad_left=int(req.pad_left),
+        )
+        out["frames_real"] = [[float(v) for v in row] for row in spectra.real]
+        out["frames_imag"] = [[float(v) for v in row] for row in spectra.imag]
+    return out
+
+
+def istft_service(req) -> dict:
+    """Validate an /istft request and reconstruct the time signal."""
+    real = _frame_matrix(req.frames_real, "frames_real")
+    if req.frames_imag is None:
+        imag = np.zeros_like(real)
+    else:
+        imag = _frame_matrix(req.frames_imag, "frames_imag")
+        if imag.shape != real.shape:
+            raise BadRequest(
+                "frame structure mismatch: frames_real has shape "
+                f"{real.shape} but frames_imag has shape {imag.shape}"
+            )
+    if req.pad_left < 0:
+        raise BadRequest("pad_left must be non-negative")
+    if req.signal_length < 1:
+        raise BadRequest("signal_length must be a positive integer")
+
+    recon = stft.istft(
+        real + 1j * imag,
+        req.hop,
+        req.window.name,
+        req.window.beta,
+        pad_left=int(req.pad_left),
+        signal_length=int(req.signal_length),
+    )
+    return {
+        "signal": [float(v) for v in recon],
+        "num_frames": int(real.shape[0]),
+        "frame_len": int(real.shape[1]),
+    }
+
+
+def _frame_matrix(rows, field: str) -> np.ndarray:
+    """Parse a JSON nested list into a finite 2-D array (or explain why not)."""
+    try:
+        arr = np.asarray(rows, dtype=np.float64)
+    except (ValueError, TypeError) as exc:
+        raise BadRequest(
+            f"frame structure mismatch: {field} rows have inconsistent lengths"
+        ) from exc
+    if arr.ndim != 2 or arr.shape[0] == 0:
+        raise BadRequest(f"{field} must be a non-empty 2-D matrix (frames x bins)")
+    if arr.shape[1] == 0:
+        raise BadRequest(f"{field} rows must be non-empty")
+    if not np.all(np.isfinite(arr)):
+        raise BadRequest(f"{field} contains non-finite values (NaN/Infinity)")
+    return arr
 
 
 def _to_list(value):

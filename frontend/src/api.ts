@@ -6,6 +6,7 @@ import type {
   FilterMode,
   FilterResponse,
   SamplingResponse,
+  StftResponse,
   WindowInfo,
   WindowSelection,
 } from './types';
@@ -80,6 +81,22 @@ export const api = {
       fs,
       n_samples: nSamples,
       phase,
+    });
+  },
+
+  stft(
+    signal: number[],
+    fs: number,
+    frameLen: number,
+    hop: number,
+    window: WindowSelection,
+  ): Promise<StftResponse> {
+    return post('/api/stft', {
+      signal,
+      fs,
+      frame_len: frameLen,
+      hop,
+      window,
     });
   },
 };

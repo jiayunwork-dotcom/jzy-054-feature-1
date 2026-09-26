@@ -325,6 +325,46 @@ input[type='range'] {
   flex-wrap: wrap;
 }
 
+/* ---- time-frequency (STFT) panel: full width under the three columns ---- */
+#panel-stft {
+  grid-column: 1 / -1;
+}
+.stft-controls {
+  margin-top: 0;
+}
+.stft-controls select {
+  width: 96px;
+}
+.stft-reso {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  color: #b9c7e2;
+  font-size: 12px;
+  padding: 7px 10px;
+  margin: 4px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stft-reso b {
+  color: var(--text);
+}
+.stft-readout {
+  color: #ffd166;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  min-height: 17px;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+#stft-canvas-host {
+  background: #0c111c;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 4px;
+  cursor: crosshair;
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;

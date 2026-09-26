@@ -70,6 +70,25 @@ export interface SamplingResponse {
   nyquist_hz: number;
 }
 
+export interface StftResponse {
+  frame_len: number;
+  hop: number;
+  fs: number;
+  window: WindowName;
+  beta: number | null;
+  num_frames: number;
+  num_bins: number;
+  times: number[];
+  frequencies: number[];
+  /** magnitude[frame][bin] — time x frequency, amplitude-normalized */
+  magnitude: number[][];
+  frame_duration_s: number;
+  time_step_s: number;
+  freq_step_hz: number;
+  pad_left: number;
+  signal_length: number;
+}
+
 export type FilterMode = 'lowpass' | 'highpass' | 'bandpass';
 
 export interface AppState {

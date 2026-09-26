@@ -1,5 +1,5 @@
 // Application entry: wire the global controls (N, fs, zero-padding) and
-// instantiate the five independently-built feature modules.
+// instantiate the six independently-built feature modules.
 
 import './styles.css';
 import { store } from './store';
@@ -8,6 +8,7 @@ import { WindowCompare } from './components/WindowCompare';
 import { SpectrumView } from './components/SpectrumView';
 import { AliasDemo } from './components/AliasDemo';
 import { FilterPanel } from './components/FilterPanel';
+import { StftView } from './components/StftView';
 
 const PAD_CHOICES = [128, 256, 512, 1024, 2048, 4096];
 
@@ -53,6 +54,7 @@ function boot(): void {
   const spectrum = new SpectrumView(document.querySelector('#spectrum-view')!);
   new AliasDemo(document.querySelector('#alias-demo')!);
   new FilterPanel(document.querySelector('#filter-panel')!);
+  new StftView(document.querySelector('#stft-view')!);
 
   // Window-set changes refresh both the table (WindowCompare) and the
   // spectra (SpectrumView subscribes itself).

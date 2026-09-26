@@ -16,6 +16,11 @@ ALLOWED_PADDED_N: frozenset[int] = frozenset(
     {64, 128, 256, 512, 1024, 2048, 4096}
 )
 
+# Selectable frame (segment) lengths for short-time analysis. Same gears as
+# the single-shot DFT sizes: powers of two so the FFT kernel takes its fast
+# path, and small enough that several frames fit into any buildable signal.
+ALLOWED_FRAME_N: frozenset[int] = ALLOWED_N
+
 WINDOW_NAMES: tuple[str, ...] = (
     "rect",
     "hann",
